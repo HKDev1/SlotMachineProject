@@ -12,67 +12,70 @@ classdef GameEngine
     %   balance - Das aktuelle Guthaben des Spielers.
 
     properties
-        currentState
-        playerProfile
         reels
-        balance
+        spinController
+        payoutCalculator
+        bonusManager
+        historyTracker
+        playerBalance
         currentBet
     end
 
     methods
-        function obj = GameEngine(playerProfile, reels)
-            % Konstruktor, der die GameEngine instanziiert und initialisiert.
-            obj.playerProfile = playerProfile;
-            obj.reels = reels;
-            obj.currentState = 'waitingForBet';
-            obj.balance = playerProfile.balance;
-            obj.currentBet = 0;
-        end
-
-        function spinReels(obj)
-            % Startet den Drehvorgang der Walzen.
-            if strcmp(obj.currentState, 'waitingForBet') && obj.balance > 0
-                obj.currentState = 'spinning';
-                for i = 1:length(obj.reels)
-                    obj.reels(i).spin();
+        function obj = GameEngine(numReels, numSymbols)
+                % Constructor initializes the game engine and its components.
+                obj.reels = Reel.empty(numReels, 0);
+                for i = 1:numReels
+                    obj.reels(i) = Reel(numSymbols);
+                end
+                obj.spinController = SpinController(numReels);
+                obj.payoutCalculator = PayoutCalculator();
+                obj.bonusManager = BonusManager();
+                obj.historyTracker = HistoryTracker();
+                obj.playerBalance = 1000; % Initial player balance
+                obj.currentBet = 10; % Default bet amount
+            end
+    
+            function play(obj)
+                % Main game loop
+                while obj.playerBalance > 0
+                    obj.placeBet();
+                    spinResults = obj.spinController.spin(obj.reels);
+                    obj.historyTracker.logEvent('spin', spinResults);
+                    
+                    payout = obj.payoutCalculator.calculatePayout(spinResults, obj.currentBet);
+                    obj.historyTracker.logEvent('payout', payout);
+    
+                    obj.applyPayout(payout);
+                    obj.bonusManager.checkBonusConditions(struct('spins', obj.spinController.spinCount, 'balance', obj.playerBalance));
+                    
+                    obj.displayResults(spinResults, payout);
+                end
+                disp('Game over! Your balance is zero.');
+            end
+    
+            function placeBet(obj)
+                % Place a bet for the current spin
+                if obj.playerBalance >= obj.currentBet
+                    obj.playerBalance = obj.playerBalance - obj.currentBet;
+                    obj.historyTracker.logEvent('betPlaced', obj.currentBet);
+                else
+                    error('Insufficient balance to place the bet.');
                 end
             end
-        end
-
-        function stopReels(obj)
-            % Stoppt die Walzen und berechnet das Ergebnis des Spins.
-            if strcmp(obj.currentState, 'spinning')
-                for i = 1:length(obj.reels)
-                    obj.reels(i).stop(randi(length(obj.reels(i).symbols))); % Zufällige Stopposition
-                end
-                winnings = obj.calculateWinnings(); % Berechnet die Gewinne
-                obj.updateBalance(winnings);
-                obj.currentState = 'waitingForBet';
+    
+            function applyPayout(obj, payout)
+                % Apply the payout to the player's balance
+                obj.playerBalance = obj.playerBalance + payout;
+                obj.historyTracker.logEvent('balanceUpdated', obj.playerBalance);
             end
-        end
-
-        function winnings = calculateWinnings(obj)
-            % Berechnet Gewinne nach dem Anhalten der Walzen.
-            results = arrayfun(@(reel) reel.getCurrentSymbol(), obj.reels); % Annahme, dass getCurrentSymbol die sichtbaren Symbole liefert
-            % Beispielhafte Logik zur Berechnung von Gewinnen:
-            winnings = sum(arrayfun(@(symbol) symbol.value, results)); % Summiert die Werte der sichtbaren Symbole
-        end
-
-        function updateBalance(obj, amount)
-            % Aktualisiert das Guthaben des Spielers.
-            obj.balance = obj.balance + amount;
-            obj.playerProfile.updateBalance(amount);
-        end
-
-        function enterBet(obj, betAmount)
-            % Verarbeitet den Einsatz des Spielers.
-            if betAmount <= obj.balance
-                obj.currentBet = betAmount;
-                obj.balance = obj.balance - betAmount;
-                obj.currentState = 'readyToSpin';
-            else
-                error('Betrag zu hoch oder nicht genügend Guthaben');
+    
+            function displayResults(obj, spinResults, payout)
+                % Display the spin results and the payout
+                disp('Spin results:');
+                disp(spinResults);
+                disp(['Payout: ', num2str(payout)]);
+                disp(['Current balance: ', num2str(obj.playerBalance)]);
             end
-        end
     end
 end
