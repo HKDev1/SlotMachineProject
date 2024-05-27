@@ -31,3 +31,8 @@ codegen/
 
 # Cloud based storage dotfile
 .MATLABDriveTag
+
+# Ignoring specific files
+Architecture_SlotRunner.drawio
+Architecture_BookOfRaSimulator.drawio
+BeliebteSpiele.txt
